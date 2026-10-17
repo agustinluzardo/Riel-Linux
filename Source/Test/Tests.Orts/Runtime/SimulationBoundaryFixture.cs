@@ -8,6 +8,7 @@ using System.Runtime.ExceptionServices;
 using Riel.Common;
 using Riel.Common.Position;
 using Riel.Models.Content;
+using Riel.Models.Settings;
 using Riel.Runtime.Track;
 
 using Orts.Simulation;
@@ -18,20 +19,32 @@ namespace Tests.Orts.Runtime
 {
     internal sealed class SimulationBoundaryFixture : IDisposable
     {
+        // Train and TrainCar retain Simulator.Instance in static fields, so every
+        // boundary test must install the same fully seeded simulator.
+        private static readonly Simulator simulator = CreateSimulator();
+
         private readonly Simulator previousSimulator = Simulator.Instance;
         private readonly TrackCircuitSection[] previousSections = TrackCircuitSection.TrackCircuitList.ToArray();
         private readonly TrackWorld previousWorld = TrackWorld.Instance;
 
         internal SimulationBoundaryFixture()
         {
+            typeof(Simulator).GetProperty(nameof(Simulator.Instance)).SetValue(null, simulator);
+            TrackCircuitSection.TrackCircuitList.Clear();
+        }
+
+        private static Simulator CreateSimulator()
+        {
             Simulator simulator = Uninitialized<Simulator>();
+            ProfileUserSettingsModel settings = Uninitialized<ProfileUserSettingsModel>();
+            settings.DataLogSeparator = SeparatorChar.Comma;
+            SetField(simulator, "<UserSettings>k__BackingField", settings);
             SetProperty(simulator, nameof(Simulator.RouteModel), new RouteModel(WorldLocation.None)
             {
                 Settings = ImmutableDictionary<string, string>.Empty,
                 SpeedRestrictions = new EnumArray<float, SpeedRestrictionType>(30),
             });
-            typeof(Simulator).GetProperty(nameof(Simulator.Instance)).SetValue(null, simulator);
-            TrackCircuitSection.TrackCircuitList.Clear();
+            return simulator;
         }
 
         public void Dispose()
