@@ -88,7 +88,7 @@ namespace Tests.Orts.Runtime
         internal static Train Train()
         {
             Train train = Uninitialized<Train>();
-            SetField(train, "<Cars>k__BackingField", new List<Orts.Simulation.RollingStocks.TrainCar>());
+            SetField(train, "<Cars>k__BackingField", new List<global::Orts.Simulation.RollingStocks.TrainCar>());
             SetField(train, "<PresentPosition>k__BackingField", new EnumArray<TrackCircuitPosition, Direction>(() => new TrackCircuitPosition()));
             SetField(train, "<ValidRoutes>k__BackingField", new EnumArray<TrackCircuitPartialPathRoute, Direction>());
             return train;

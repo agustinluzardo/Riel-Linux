@@ -30,7 +30,7 @@ namespace Tests.Orts.Runtime
             // FrozenDictionary enumeration order is deliberately unspecified. Put the
             // car at whichever crossing production will visit first.
             LevelCrossingItem[] order = crossings.TrackCrossingItems.Values.ToArray();
-            Train train = Train(node, TrainType.Static);
+            Train train = CreateTrain(node, TrainType.Static);
             TrainCar car = SimulationBoundaryFixture.Uninitialized<MSTSWagon>();
             SimulationBoundaryFixture.SetField(car, "worldPosition", new WorldPosition(order[0].Location));
             train.Cars.Add(car);
@@ -48,7 +48,7 @@ namespace Tests.Orts.Runtime
             VectorNode node = InitializeTrack();
             LevelCrossings crossings = Crossings(node, 50, 75);
             LevelCrossingItem[] order = crossings.TrackCrossingItems.Values.ToArray();
-            Train train = Train(node, TrainType.Static);
+            Train train = CreateTrain(node, TrainType.Static);
             TrainCar car = SimulationBoundaryFixture.Uninitialized<MSTSWagon>();
             SimulationBoundaryFixture.SetField(car, "worldPosition", new WorldPosition(order[0].Location));
             train.Cars.Add(car);
@@ -70,7 +70,7 @@ namespace Tests.Orts.Runtime
             LevelCrossings crossings = reverseInsertion ? Crossings(node, 350, 150) : Crossings(node, 150, 350);
             LevelCrossingItem near = crossings.TrackCrossingItems.Values.Single(item => item.Location.Location.Z == 150);
             LevelCrossingItem far = crossings.TrackCrossingItems.Values.Single(item => item.Location.Location.Z == 350);
-            Train train = Train(node, TrainType.Player);
+            Train train = CreateTrain(node, TrainType.Player);
             SimulationBoundaryFixture.SetProperty(train, nameof(Train.SpeedMpS), 10f);
             SimulationBoundaryFixture.SetProperty(train, nameof(Train.AllowedMaxSpeedMpS), 10f);
             far.AddTrain(train);
@@ -81,7 +81,7 @@ namespace Tests.Orts.Runtime
             Assert.IsFalse(far.CrossingGroup.HasTrain);
         }
 
-        private static Train Train(VectorNode node, TrainType type)
+        private static Train CreateTrain(VectorNode node, TrainType type)
         {
             Train train = SimulationBoundaryFixture.Train();
             SimulationBoundaryFixture.SetProperty(train, nameof(Train.TrainType), type);
