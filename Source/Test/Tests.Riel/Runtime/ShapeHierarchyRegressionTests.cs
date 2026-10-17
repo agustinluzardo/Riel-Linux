@@ -7,6 +7,7 @@ using System.Runtime.CompilerServices;
 
 using Riel.Common;
 using Riel.Common.Position;
+using Riel.Common.Xna;
 using Riel.Models.Settings;
 
 using Microsoft.VisualStudio.TestTools.UnitTesting;
