@@ -119,6 +119,8 @@ namespace Orts.ActivityRunner.Viewer3D.Shapes
             //            string file = Path.GetFileName(filePath);
             //            string orFilePath = dir + @"\openrails\" + file;
             var sFile = new ShapeFile(filePath, viewer.UserSettings.ShapeWarnings);
+            // Check every referenced parent chain before any LOD allocates GPU buffers.
+            ValidatePrimitiveHierarchies(sFile.Shape, FilePath);
             //            if (file.ToLower().Contains("turntable") && ContentIO.FileExists(orFilePath))
             //            {
             //                sFile.ReadAnimationBlock(orFilePath);
@@ -183,6 +185,46 @@ namespace Orts.ActivityRunner.Viewer3D.Shapes
                         break;
                     }
                 }
+            }
+        }
+
+        private static void ValidatePrimitiveHierarchies(Formats.Msts.Models.Shape shape, string shapePath)
+        {
+            foreach (var lod in shape.LodControls)
+                foreach (var level in lod.DistanceLevels)
+                    foreach (var subObject in level.SubObjects)
+                        foreach (var primitive in subObject.Primitives)
+                        {
+                            var state = shape.PrimaryStates[primitive.PrimitiveStateIndex];
+                            int matrixIndex = shape.VertexStates[state.VertexStateIndex].MatrixIndex;
+                            ValidatePrimitiveHierarchy(level.DistanceLevelHeader.Hierarchy, matrixIndex, shapePath);
+                        }
+        }
+
+        private static void ValidatePrimitiveHierarchy(int[] hierarchy, int matrixIndex, string shapePath)
+        {
+            int current = matrixIndex;
+            int traversed = 0;
+            while (current >= 0 && current < hierarchy.Length)
+            {
+                // A terminating parent chain visits at most hierarchy.Length nodes.
+                if (traversed++ >= hierarchy.Length)
+                    throw new InvalidDataException($"Invalid primitive hierarchy in shape {shapePath}: cycle starting at matrix {matrixIndex}.");
+                current = hierarchy[current];
+            }
+            if (current != -1)
+            {
+                // Keep legacy truncated-parent behavior: ordinary rendering stops at an
+                // out-of-range parent, and container shapes use that as a root marker.
+                var hierarchyList = new List<int>();
+                current = matrixIndex;
+                while (current >= 0 && current < hierarchy.Length)
+                {
+                    hierarchyList.Add(current);
+                    current = hierarchy[current];
+                }
+                hierarchyList.Add(current);
+                Trace.TraceWarning("Ignored invalid primitive hierarchy {1} in shape {0}", shapePath, string.Join(" ", hierarchyList));
             }
         }
 
@@ -353,26 +395,6 @@ namespace Orts.ActivityRunner.Viewer3D.Shapes
                     var vertexState = sFile.Shape.VertexStates[primitiveState.VertexStateIndex];
                     var lightModelConfiguration = sFile.Shape.LightModelConfigs[vertexState.LightConfigIndex];
                     var options = SceneryMaterialOptions.None;
-
-                    // Validate hierarchy position.
-                    var hierarchyIndex = vertexState.MatrixIndex;
-                    while (hierarchyIndex != -1)
-                    {
-                        if (hierarchyIndex < 0 || hierarchyIndex >= hierarchy.Length)
-                        {
-                            var hierarchyList = new List<int>();
-                            hierarchyIndex = vertexState.MatrixIndex;
-                            while (hierarchyIndex >= 0 && hierarchyIndex < hierarchy.Length)
-                            {
-                                hierarchyList.Add(hierarchyIndex);
-                                hierarchyIndex = hierarchy[hierarchyIndex];
-                            }
-                            hierarchyList.Add(hierarchyIndex);
-                            Trace.TraceWarning("Ignored invalid primitive hierarchy {1} in shape {0}", sharedShape.FilePath, string.Join(" ", hierarchyList.Select(hi => $"{hi}").ToArray()));
-                            break;
-                        }
-                        hierarchyIndex = hierarchy[hierarchyIndex];
-                    }
 
                     if (lightModelConfiguration.UVOperations.Count > 0)
                         if (lightModelConfiguration.UVOperations[0].TextureAddressMode - 1 >= 0 && lightModelConfiguration.UVOperations[0].TextureAddressMode - 1 < UVTextureAddressModeMap.Length)

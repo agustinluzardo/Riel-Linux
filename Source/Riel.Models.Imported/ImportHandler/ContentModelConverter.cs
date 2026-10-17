@@ -23,9 +23,9 @@ namespace Riel.Models.Imported.ImportHandler
 
                 int folderCount = contentModel.ContentFolders.Length;
                 int completedCount = 0;
-                await Parallel.ForEachAsync(contentModel.ContentFolders, async (folderModel, cancellationToken) =>
+                await Parallel.ForEachAsync(contentModel.ContentFolders, cancellationToken, async (folderModel, iterationCancellationToken) =>
                 {
-                    _ = await ConvertContent(folderModel, refresh, cancellationToken).ConfigureAwait(false);
+                    _ = await ConvertContent(folderModel, refresh, iterationCancellationToken).ConfigureAwait(false);
                     _ = Interlocked.Increment(ref completedCount);
                     progressClient?.Report(folderCount == 0 ? 100 : completedCount * 100 / folderCount);
                 }).ConfigureAwait(false);
@@ -43,9 +43,9 @@ namespace Riel.Models.Imported.ImportHandler
             {
                 contentModel = await ContentModelImportHandler.ExpandContentModel(contentModel, cancellationToken).ConfigureAwait(false);
 
-                await Parallel.ForEachAsync(contentModel.ContentFolders, async (folderModel, cancellationToken) =>
+                await Parallel.ForEachAsync(contentModel.ContentFolders, cancellationToken, async (folderModel, iterationCancellationToken) =>
                 {
-                    _ = await ConvertContent(folderModel, refresh, cancellationToken).ConfigureAwait(false);
+                    _ = await ConvertContent(folderModel, refresh, iterationCancellationToken).ConfigureAwait(false);
                 }).ConfigureAwait(false);
 
                 contentModel = await ContentModelImportHandler.StampImportRevision(contentModel, cancellationToken).ConfigureAwait(false);

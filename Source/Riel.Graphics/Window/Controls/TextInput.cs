@@ -35,7 +35,6 @@ namespace Riel.Graphics.Window.Controls
         {
             if (Window is WindowBase frameWindow && frameWindow.ActiveControl == this)
             {
-                frameWindow.Owner.UserCommandController.SuppressDownLevelEventHandling = true;
                 switch (e.Character)
                 {
                     case '\b':
@@ -47,12 +46,10 @@ namespace Riel.Graphics.Window.Controls
                         break;
                     case '\r':
                         frameWindow.ActiveControl = null;
-                        frameWindow.Owner.UserCommandController.SuppressDownLevelEventHandling = false;
                         OnEnterKey?.Invoke(this, EventArgs.Empty);
                         break;
                     case '\u001b':
                         frameWindow.ActiveControl = null;
-                        frameWindow.Owner.UserCommandController.SuppressDownLevelEventHandling = false;
                         OnEscapeKey?.Invoke(this, EventArgs.Empty);
                         break;
                     default:
@@ -83,7 +80,6 @@ namespace Riel.Graphics.Window.Controls
             if (Window is WindowBase frameWindow && frameWindow.ActiveControl == this)
             {
                 frameWindow.ActiveControl = null;
-                frameWindow.Owner.UserCommandController.SuppressDownLevelEventHandling = false;
                 OnEnterKey?.Invoke(this, EventArgs.Empty);
             }
         }

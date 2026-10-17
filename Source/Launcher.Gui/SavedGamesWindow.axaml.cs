@@ -97,12 +97,19 @@ namespace Riel.Launcher.Gui
 
         private async Task LoadDetails()
         {
-            // Reading a complete simulator snapshot is expensive. Read sequentially off the UI
-            // thread; the list, preview, and buttons remain usable while details arrive.
-            foreach (SavedGameItem item in saves.ToArray())
+            // Read snapshots one at a time off the UI thread. After each read, prioritize the
+            // selected save so Continue does not wait behind every older/newer snapshot.
+            List<SavedGameItem> pending = saves.ToList();
+            while (pending.Count > 0)
             {
                 if (closing.IsCancellationRequested)
                     return;
+                SavedGameItem item = SaveList.SelectedItem as SavedGameItem;
+                if (item == null || !pending.Remove(item))
+                {
+                    item = pending[0];
+                    pending.RemoveAt(0);
+                }
                 if (item.DetailsLoaded || !item.File.Exists)
                     continue;
                 try
@@ -172,12 +179,14 @@ namespace Riel.Launcher.Gui
             preview?.Dispose();
             preview = null;
             SavedGameItem chosen = SaveList.SelectedItem as SavedGameItem;
-            ContinueButton.IsEnabled = chosen?.CanResume == true;
+            // The metadata determines both validity and the simulator's resume action.
+            // Do not launch using the provisional defaults while that read is pending.
+            ContinueButton.IsEnabled = chosen?.DetailsLoaded == true && chosen.CanResume;
             DeleteButton.IsEnabled = chosen != null;
             ExportButton.IsEnabled = chosen != null;
             bool replay = chosen != null && File.Exists(Path.ChangeExtension(chosen.File.FullName, ".replay"));
             ReplayStartButton.IsEnabled = replay;
-            ReplayPreviousButton.IsEnabled = replay && chosen.CanResume;
+            ReplayPreviousButton.IsEnabled = replay && chosen.DetailsLoaded && chosen.CanResume;
             DeleteInvalidButton.IsEnabled = saves.Any(item => item.DetailsLoaded && !item.CanResume);
             SelectedDetails.Text = chosen?.Details ?? string.Empty;
             SelectedFile.Text = chosen?.File.FullName ?? string.Empty;
@@ -201,13 +210,14 @@ namespace Riel.Launcher.Gui
 
         private void Accept()
         {
-            if (SaveList.SelectedItem is SavedGameItem chosen && chosen.CanResume)
+            if (SaveList.SelectedItem is SavedGameItem chosen && chosen.DetailsLoaded && chosen.CanResume)
                 Close(new SavedGameChoice(chosen.File.FullName, chosen.ResumeAction));
         }
 
         private void ChooseReplay(string action)
         {
             if (SaveList.SelectedItem is SavedGameItem chosen &&
+                (action != "-SingleplayerReplayFromSave" || chosen.DetailsLoaded && chosen.CanResume) &&
                 File.Exists(Path.ChangeExtension(chosen.File.FullName, ".replay")))
                 Close(new SavedGameChoice(chosen.File.FullName, action));
         }

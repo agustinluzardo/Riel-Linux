@@ -207,6 +207,16 @@ namespace Riel.Graphics.Window
             activeWindow?.ActiveControl?.HandleTextInput(e);
         }
 
+        internal void UpdateInputSuppression()
+        {
+            if (UserCommandController == null)
+                return;
+            // Text focus must release game commands when it is lost, while an
+            // open modal must keep blocking them even after Enter or Escape.
+            UserCommandController.SuppressDownLevelEventHandling =
+                modalWindows.Count > 0 || activeWindow?.ActiveControl is TextInput;
+        }
+
         private void UpdateSize()
         {
             xnaView = Matrix.CreateTranslation(-viewport.Width / 2, -viewport.Height / 2, 0) *
@@ -246,8 +256,8 @@ namespace Riel.Graphics.Window
                     }
                     if (window.Modal)
                     {
-                        UserCommandController.SuppressDownLevelEventHandling = true;
                         modalWindows.Push(framedWindow);
+                        UpdateInputSuppression();
                         OnModalWindow?.Invoke(this, new ModalWindowEventArgs(true));
                     }
                 }
@@ -269,11 +279,11 @@ namespace Riel.Graphics.Window
             {
                 SuppressDrawing = false;
                 modalWindows.Pop();
+                UpdateInputSuppression();
                 if (modalWindows.Count == 0)
                 {
                     if (window == activeWindow)
                         activeWindow = null;
-                    UserCommandController.SuppressDownLevelEventHandling = false;
                     OnModalWindow?.Invoke(this, new ModalWindowEventArgs(false));
                 }
                 else
@@ -283,6 +293,7 @@ namespace Riel.Graphics.Window
             }
 #pragma warning restore CA2000 // Dispose objects before losing scope
             activeWindow?.FocusSet();
+            UpdateInputSuppression();
             List<FormBase> updatedWindowList = new List<FormBase>(windows);
             if (updatedWindowList.Remove(window))
             {

@@ -3440,7 +3440,7 @@ namespace Orts.Simulation.Signalling
             float dZnode = TS1Zc - Z1;
 
             float dplatform = Math.Abs(dXplatform) > Math.Abs(dZplatform) ? dXplatform : dZplatform;
-            float dnode = Math.Abs(dXplatform) > Math.Abs(dXplatform) ? dXnode : dZnode;  // use same delta direction!
+            float dnode = Math.Abs(dXplatform) > Math.Abs(dZplatform) ? dXnode : dZnode;  // use same delta direction!
 
             // if towards begin : build list of sections from start
 
@@ -3480,7 +3480,7 @@ namespace Orts.Simulation.Signalling
             dZnode = TS2Zc - Z2c;
 
             dplatform = Math.Abs(dXplatform) > Math.Abs(dZplatform) ? dXplatform : dZplatform;
-            dnode = Math.Abs(dXplatform) > Math.Abs(dXplatform) ? dXnode : dZnode;  // use same delta direction!
+            dnode = Math.Abs(dXplatform) > Math.Abs(dZplatform) ? dXnode : dZnode;  // use same delta direction!
 
             // if towards begin : build list of sections from start
 
