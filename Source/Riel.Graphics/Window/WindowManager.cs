@@ -11,6 +11,7 @@ using Riel.Common.Input;
 using Riel.Common.Native;
 using Riel.Graphics.MapView.Shapes;
 using Riel.Graphics.Shaders;
+using Riel.Graphics.Window.Controls;
 using Riel.Graphics.Xna;
 
 using Microsoft.Xna.Framework;
