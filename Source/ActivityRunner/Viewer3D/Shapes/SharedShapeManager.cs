@@ -11,6 +11,7 @@ namespace Orts.ActivityRunner.Viewer3D.Shapes
     {
         private readonly Dictionary<string, SharedShape> sharedShapes = new Dictionary<string, SharedShape>(StringComparer.OrdinalIgnoreCase);
         private readonly Dictionary<string, bool> shapeMarks = new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase);
+        private ResourceMarkIndex<string, SharedShape> markIndex;
 
         internal SharedShapeManager(Viewer viewer)
         {
@@ -40,6 +41,7 @@ namespace Orts.ActivityRunner.Viewer3D.Shapes
 
         public void Mark()
         {
+            (markIndex ??= new ResourceMarkIndex<string, SharedShape>()).Reset(sharedShapes);
             shapeMarks.Clear();
             foreach (var path in sharedShapes.Keys)
                 shapeMarks.Add(path, false);
@@ -47,8 +49,7 @@ namespace Orts.ActivityRunner.Viewer3D.Shapes
 
         public void Mark(SharedShape shape)
         {
-            if (sharedShapes.ContainsValue(shape))
-                shapeMarks[sharedShapes.First(kvp => kvp.Value == shape).Key] = true;
+            markIndex?.Mark(shape, shapeMarks);
         }
 
         public void Sweep()
@@ -58,6 +59,7 @@ namespace Orts.ActivityRunner.Viewer3D.Shapes
                 sharedShapes[path].Dispose();
                 sharedShapes.Remove(path);
             }
+            markIndex?.Clear();
         }
 
         public string GetStatus()

@@ -554,10 +554,15 @@ namespace Orts.ActivityRunner.Viewer3D
                 }
                 foreach (var path in instances.Keys)
                 {
-                    if (instances[path].Count >= MinimumInstanceCount)
+                    // Bounded groups avoid submitting an entire tile of instances
+                    // when only a small part is visible. Keep track/ordinary flags separate.
+                    foreach (var group in instances[path].GroupBy(InstanceCell))
                     {
-                        var sharedInstance = new SharedStaticShapeInstance(path, instances[path]);
-                        foreach (var model in instances[path])
+                        List<BaseShape> copies = group.ToList();
+                        if (copies.Count < MinimumInstanceCount)
+                            continue;
+                        var sharedInstance = new SharedStaticShapeInstance(path, copies);
+                        foreach (var model in copies)
                             SceneryObjects.Remove(model);
                         SceneryObjects.Add(sharedInstance);
                     }
@@ -568,6 +573,10 @@ namespace Orts.ActivityRunner.Viewer3D
                 SuperElevationManager.DecomposeStaticSuperElevation(Viewer, DynamicTrackList, tile);
             Viewer.World.Sounds?.AddByTile(tile);
         }
+
+        private static (int X, int Z, Type Kind) InstanceCell(BaseShape shape) =>
+            ((int)Math.Floor(shape.WorldPosition.Location.X / 256f),
+             (int)Math.Floor(shape.WorldPosition.Location.Z / 256f), shape.GetType());
 
         //Method to check a shape name is listed in "openrails\clocks.dat"
         public static ClockType OrClockType(string shape)

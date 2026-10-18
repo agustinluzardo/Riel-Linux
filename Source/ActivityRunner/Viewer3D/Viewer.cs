@@ -575,7 +575,7 @@ namespace Orts.ActivityRunner.Viewer3D
             // all loading is performed on a single thread that we can handle in debugging and tracing.
             World.LoadPrep();
             MaterialManager.LoadPrep();
-            LoadMemoryThreshold = GC.GetGCMemoryInfo().TotalAvailableMemoryBytes - 512;
+            LoadMemoryThreshold = TexturePreloadBudget.Limit(GC.GetGCMemoryInfo().TotalAvailableMemoryBytes);
             Load();
 
             // MUST be after loading is done! (Or we try and load shapes on the main thread.)
@@ -1933,7 +1933,7 @@ namespace Orts.ActivityRunner.Viewer3D
 
             NightTexturesNotLoaded = !saveState.NightTexturesLoaded;
             DayTexturesNotLoaded = !saveState.DayTexturesLoaded;
-            LoadMemoryThreshold = GC.GetGCMemoryInfo().TotalAvailableMemoryBytes - 512;
+            LoadMemoryThreshold = TexturePreloadBudget.Limit(GC.GetGCMemoryInfo().TotalAvailableMemoryBytes);
             TryLoadingNightTextures = true;
             TryLoadingDayTextures = true;
 

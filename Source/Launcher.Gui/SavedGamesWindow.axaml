@@ -12,20 +12,26 @@
                  Text="{l:T 'Select a save to see its route, train, game time and screenshot.'}" />
     </StackPanel>
     <StackPanel DockPanel.Dock="Bottom" Spacing="8" Margin="0,14,0,0">
-      <StackPanel Orientation="Horizontal" Spacing="8">
+      <WrapPanel Orientation="Horizontal">
+        <WrapPanel.Styles>
+          <Style Selector="Button"><Setter Property="Margin" Value="0,0,8,8" /></Style>
+        </WrapPanel.Styles>
         <Button x:Name="DeleteButton" Content="{l:T 'Delete save'}" IsEnabled="False" />
         <Button x:Name="DeleteInvalidButton" Content="{l:T 'Delete invalid saves'}" />
         <Button x:Name="RestoreButton" Content="{l:T 'Restore deleted saves'}" />
         <Button x:Name="ImportButton" Content="{l:T 'Import save pack'}" />
         <Button x:Name="ExportButton" Content="{l:T 'Export save pack'}" IsEnabled="False" />
-      </StackPanel>
-      <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8">
+      </WrapPanel>
+      <WrapPanel Orientation="Horizontal" HorizontalAlignment="Right">
+        <WrapPanel.Styles>
+          <Style Selector="Button"><Setter Property="Margin" Value="0,0,8,0" /></Style>
+        </WrapPanel.Styles>
         <Button x:Name="ReplayPreviousButton" Content="{l:T 'Replay from previous save'}" IsEnabled="False" />
         <Button x:Name="ReplayStartButton" Content="{l:T 'Replay from start'}" IsEnabled="False" />
         <Button x:Name="CancelButton" Content="{l:T 'Cancel'}" IsCancel="True" MinWidth="95" />
         <Button x:Name="ContinueButton" Content="{l:T 'Continue'}" Classes="accent"
                 IsDefault="True" MinWidth="115" IsEnabled="False" />
-      </StackPanel>
+      </WrapPanel>
     </StackPanel>
     <Grid ColumnDefinitions="*,300" ColumnSpacing="16">
       <ListBox x:Name="SaveList" Grid.Column="0">

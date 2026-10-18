@@ -64,6 +64,7 @@ namespace Tests.Riel.Runtime
             camera.ScreenChanged();
             camera.PrepareFrame(frame, ElapsedTime.Zero);
             SharedShape.Initialize(viewer);
+            BaseShape.Initialize(viewer);
         }
 
         [TestCleanup]
@@ -182,6 +183,68 @@ namespace Tests.Riel.Runtime
             {
                 Trace.Listeners.Remove(listener);
             }
+        }
+
+        [TestMethod]
+        [DataRow(50f, 0, 0f, 0)]
+        [DataRow(300f, 0, 0f, 1)]
+        [DataRow(900f, 0, 0f, 2)]
+        [DataRow(300f, 100, 0f, 0)]
+        [DataRow(5f, -100, 0f, 2)]
+        [DataRow(300f, 0, 300f, 0)]
+        public void InstancedGroupsSubmitTheAuthoredLodAndKeepDetailOnTheNearestCopy(
+            float distance, int bias, float spread, int expectedLevel)
+        {
+            viewer.UserSettings.DetailLevelBias = bias;
+            SharedShape shape = Uninitialized<SharedShape>();
+            SharedShape.DistanceLevel[] levels = new SharedShape.DistanceLevel[3];
+            ShapePrimitiveInstances[][] primitiveLevels = new ShapePrimitiveInstances[3][];
+            CaptureMaterial[] materials = new CaptureMaterial[3];
+            for (int level = 0; level < levels.Length; level++)
+            {
+                levels[level] = Uninitialized<SharedShape.DistanceLevel>();
+                levels[level].ViewingDistance = new[] { 100f, 500f, 2000f }[level];
+                levels[level].ViewSphereRadius = 10;
+                materials[level] = new CaptureMaterial();
+                ShapePrimitiveInstances primitive = Uninitialized<ShapePrimitiveInstances>();
+                SetField(typeof(ShapePrimitiveInstances), primitive, "<Material>k__BackingField", materials[level]);
+                primitiveLevels[level] = new[] { primitive };
+            }
+            SharedShape.LodControl control = Uninitialized<SharedShape.LodControl>();
+            control.DistanceLevels = levels;
+            shape.LodControls = new[] { control };
+            SharedStaticShapeInstance group = Uninitialized<SharedStaticShapeInstance>();
+            group.SharedShape = shape;
+            SetField(typeof(StaticShape), group, "worldPosition",
+                new WorldPosition(Tile.Zero, Matrix.CreateTranslation(0, 0, -distance)));
+            SetField(typeof(SharedStaticShapeInstance), group, "instanceSpread", spread);
+            SetField(typeof(SharedStaticShapeInstance), group, "objectRadius", spread + 10);
+            SetField(typeof(SharedStaticShapeInstance), group, "primitives", new[] { primitiveLevels });
+
+            group.PrepareFrame(frame, ElapsedTime.Zero);
+            typeof(RenderFrame).GetMethod("DrawSequences", BindingFlags.Instance | BindingFlags.NonPublic)
+                .Invoke(frame, new object[] { false });
+
+            for (int level = 0; level < levels.Length; level++)
+                Assert.AreEqual(level == expectedLevel ? 1 : 0, materials[level].Matrices.Count);
+        }
+
+        [TestMethod]
+        public void InstanceCellsKeepDistantCopiesAndTrackFlagsInSeparateGroups()
+        {
+            MethodInfo cell = typeof(Orts.ActivityRunner.Viewer3D.WorldFile).GetMethod("InstanceCell", BindingFlags.Static | BindingFlags.NonPublic);
+            StaticShape negative = Uninitialized<StaticShape>();
+            StaticShape origin = Uninitialized<StaticShape>();
+            StaticShape distant = Uninitialized<StaticShape>();
+            StaticTrackShape track = Uninitialized<StaticTrackShape>();
+            SetField(typeof(StaticShape), negative, "worldPosition", new WorldPosition(Tile.Zero, Matrix.CreateTranslation(-0.1f, 0, 0)));
+            SetField(typeof(StaticShape), origin, "worldPosition", new WorldPosition(Tile.Zero, Matrix.Identity));
+            SetField(typeof(StaticShape), distant, "worldPosition", new WorldPosition(Tile.Zero, Matrix.CreateTranslation(256, 0, 0)));
+            SetField(typeof(StaticShape), track, "worldPosition", new WorldPosition(Tile.Zero, Matrix.Identity));
+            Assert.AreEqual((-1, 0, typeof(StaticShape)), cell.Invoke(null, new object[] { negative }));
+            Assert.AreEqual((0, 0, typeof(StaticShape)), cell.Invoke(null, new object[] { origin }));
+            Assert.AreEqual((1, 0, typeof(StaticShape)), cell.Invoke(null, new object[] { distant }));
+            Assert.AreEqual((0, 0, typeof(StaticTrackShape)), cell.Invoke(null, new object[] { track }));
         }
 
         private static StaticShape CreateStaticShape(SharedShape shape, WorldPosition position)

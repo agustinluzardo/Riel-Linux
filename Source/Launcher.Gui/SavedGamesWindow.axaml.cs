@@ -6,7 +6,6 @@ using System.Collections.Generic;
 using System.ComponentModel;
 using System.Globalization;
 using System.IO;
-using System.IO.Compression;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -67,6 +66,8 @@ namespace Riel.Launcher.Gui
         private readonly List<SavedGameItem> saves;
         private readonly CancellationTokenSource closing = new CancellationTokenSource();
         private Bitmap preview;
+        private readonly SemaphoreSlim fileAccess = new SemaphoreSlim(1, 1);
+        private bool operationInProgress;
 
         public SavedGamesWindow(IReadOnlyList<RouteItem> routes)
         {
@@ -79,11 +80,11 @@ namespace Riel.Launcher.Gui
             ContinueButton.Click += (_, _) => Accept();
             ReplayStartButton.Click += (_, _) => ChooseReplay("-SingleplayerReplay");
             ReplayPreviousButton.Click += (_, _) => ChooseReplay("-SingleplayerReplayFromSave");
-            DeleteButton.Click += async (_, _) => await DeleteSelected();
-            DeleteInvalidButton.Click += async (_, _) => await DeleteInvalid();
-            RestoreButton.Click += async (_, _) => await RestoreDeleted();
-            ImportButton.Click += async (_, _) => await ImportSavePack();
-            ExportButton.Click += async (_, _) => await ExportSavePack();
+            DeleteButton.Click += async (_, _) => await RunSaveOperation(DeleteSelected);
+            DeleteInvalidButton.Click += async (_, _) => await RunSaveOperation(DeleteInvalid);
+            RestoreButton.Click += async (_, _) => await RunSaveOperation(RestoreDeleted);
+            ImportButton.Click += async (_, _) => await RunSaveOperation(ImportSavePack);
+            ExportButton.Click += async (_, _) => await RunSaveOperation(ExportSavePack);
             CancelButton.Click += (_, _) => Close(null);
             Opened += async (_, _) => await LoadDetails();
             Closed += (_, _) =>
@@ -92,17 +93,52 @@ namespace Riel.Launcher.Gui
                 Screenshot.Source = null;
                 preview?.Dispose();
             };
-            RefreshRestoreButton();
+            RefreshActions();
+        }
+
+        private async Task RunSaveOperation(Func<Task> operation)
+        {
+            if (operationInProgress || closing.IsCancellationRequested)
+                return;
+            operationInProgress = true;
+            RefreshActions();
+            try
+            {
+                await fileAccess.WaitAsync(closing.Token);
+                try
+                {
+                    if (!closing.IsCancellationRequested)
+                        await operation();
+                }
+                finally
+                {
+                    fileAccess.Release();
+                }
+            }
+            catch (OperationCanceledException) when (closing.IsCancellationRequested)
+            {
+                return;
+            }
+            finally
+            {
+                operationInProgress = false;
+                if (!closing.IsCancellationRequested)
+                    RefreshActions();
+            }
+            if (!closing.IsCancellationRequested)
+                await LoadDetails();
         }
 
         private async Task LoadDetails()
         {
+            // The same gate keeps a snapshot read from racing an import/delete/restore.
+            // Release it between snapshots so a requested file operation takes priority.
             // Read snapshots one at a time off the UI thread. After each read, prioritize the
             // selected save so Continue does not wait behind every older/newer snapshot.
             List<SavedGameItem> pending = saves.ToList();
             while (pending.Count > 0)
             {
-                if (closing.IsCancellationRequested)
+                if (closing.IsCancellationRequested || operationInProgress)
                     return;
                 SavedGameItem item = SaveList.SelectedItem as SavedGameItem;
                 if (item == null || !pending.Remove(item))
@@ -114,8 +150,19 @@ namespace Riel.Launcher.Gui
                     continue;
                 try
                 {
-                    GameSaveState state = await Task.Run(async () =>
-                        await GameSaveState.FromFile<GameSaveState>(item.File.FullName, closing.Token), closing.Token);
+                    GameSaveState state;
+                    await fileAccess.WaitAsync(closing.Token);
+                    try
+                    {
+                        if (closing.IsCancellationRequested || operationInProgress || item.DetailsLoaded || !saves.Contains(item))
+                            continue;
+                        state = await Task.Run(async () =>
+                            await GameSaveState.FromFile<GameSaveState>(item.File.FullName, closing.Token), closing.Token);
+                    }
+                    finally
+                    {
+                        fileAccess.Release();
+                    }
                     if (closing.IsCancellationRequested)
                         return;
 
@@ -157,6 +204,8 @@ namespace Riel.Launcher.Gui
                 }
                 catch (Exception ex) when (ex is not OutOfMemoryException)
                 {
+                    if (closing.IsCancellationRequested)
+                        return;
                     // The details panel is optional metadata. A preview/deserialization
                     // failure here must not prevent the simulator from attempting its
                     // normal restore path, especially for saves from older Riel builds.
@@ -168,26 +217,40 @@ namespace Riel.Launcher.Gui
                     item.ResumeAction = "-SingleplayerResume";
                 }
                 item.DetailsLoaded = true;
+                RefreshActions();
                 if (SaveList.SelectedItem == item)
                     ShowSelection();
             }
         }
 
+        private void RefreshActions()
+        {
+            if (closing.IsCancellationRequested)
+                return;
+            SaveList.IsEnabled = !operationInProgress;
+            SavedGameItem chosen = SaveList.SelectedItem as SavedGameItem;
+            // The metadata determines both validity and the simulator's resume action.
+            // Do not launch using the provisional defaults while that read is pending.
+            ContinueButton.IsEnabled = !operationInProgress && chosen?.DetailsLoaded == true && chosen.CanResume;
+            DeleteButton.IsEnabled = !operationInProgress && chosen != null;
+            ExportButton.IsEnabled = !operationInProgress && chosen != null;
+            bool replay = chosen != null && File.Exists(Path.ChangeExtension(chosen.File.FullName, ".replay"));
+            ReplayStartButton.IsEnabled = !operationInProgress && replay;
+            ReplayPreviousButton.IsEnabled = !operationInProgress && replay && chosen.DetailsLoaded && chosen.CanResume;
+            DeleteInvalidButton.IsEnabled = !operationInProgress && saves.Any(item => item.DetailsLoaded && !item.CanResume);
+            ImportButton.IsEnabled = !operationInProgress;
+            RefreshRestoreButton();
+        }
+
         private void ShowSelection()
         {
+            if (closing.IsCancellationRequested)
+                return;
             Screenshot.Source = null;
             preview?.Dispose();
             preview = null;
             SavedGameItem chosen = SaveList.SelectedItem as SavedGameItem;
-            // The metadata determines both validity and the simulator's resume action.
-            // Do not launch using the provisional defaults while that read is pending.
-            ContinueButton.IsEnabled = chosen?.DetailsLoaded == true && chosen.CanResume;
-            DeleteButton.IsEnabled = chosen != null;
-            ExportButton.IsEnabled = chosen != null;
-            bool replay = chosen != null && File.Exists(Path.ChangeExtension(chosen.File.FullName, ".replay"));
-            ReplayStartButton.IsEnabled = replay;
-            ReplayPreviousButton.IsEnabled = replay && chosen.DetailsLoaded && chosen.CanResume;
-            DeleteInvalidButton.IsEnabled = saves.Any(item => item.DetailsLoaded && !item.CanResume);
+            RefreshActions();
             SelectedDetails.Text = chosen?.Details ?? string.Empty;
             SelectedFile.Text = chosen?.File.FullName ?? string.Empty;
 
@@ -210,13 +273,15 @@ namespace Riel.Launcher.Gui
 
         private void Accept()
         {
-            if (SaveList.SelectedItem is SavedGameItem chosen && chosen.DetailsLoaded && chosen.CanResume)
+            if (!operationInProgress && !closing.IsCancellationRequested &&
+                SaveList.SelectedItem is SavedGameItem chosen && chosen.DetailsLoaded && chosen.CanResume)
                 Close(new SavedGameChoice(chosen.File.FullName, chosen.ResumeAction));
         }
 
         private void ChooseReplay(string action)
         {
-            if (SaveList.SelectedItem is SavedGameItem chosen &&
+            if (!operationInProgress && !closing.IsCancellationRequested &&
+                SaveList.SelectedItem is SavedGameItem chosen &&
                 (action != "-SingleplayerReplayFromSave" || chosen.DetailsLoaded && chosen.CanResume) &&
                 File.Exists(Path.ChangeExtension(chosen.File.FullName, ".replay")))
                 Close(new SavedGameChoice(chosen.File.FullName, action));
@@ -228,8 +293,14 @@ namespace Riel.Launcher.Gui
             if (invalid.Length == 0 || !await Dialogs.Confirm(this, T("Delete invalid saves?"),
                 F("Move {0} invalid saves to Deleted Saves?", invalid.Length), T("Delete invalid saves"), T("Cancel")))
                 return;
+            if (closing.IsCancellationRequested)
+                return;
             foreach (SavedGameItem item in invalid)
+            {
+                if (closing.IsCancellationRequested)
+                    return;
                 await MoveToDeleted(item);
+            }
             RefreshSaves();
             RefreshRestoreButton();
             ShowSelection();
@@ -244,6 +315,8 @@ namespace Riel.Launcher.Gui
                 T("Delete save"), T("Cancel")))
                 return;
 
+            if (closing.IsCancellationRequested)
+                return;
             await MoveToDeleted(chosen);
             RefreshSaves();
             RefreshRestoreButton();
@@ -270,9 +343,12 @@ namespace Riel.Launcher.Gui
             }
             catch (Exception ex) when (ex is IOException || ex is UnauthorizedAccessException)
             {
-                await Dialogs.Message(this, T("Could not delete saved game"), ex.Message);
+                await ShowMessage(T("Could not delete saved game"), ex.Message);
             }
         }
+
+        private Task ShowMessage(string title, string message) => closing.IsCancellationRequested
+            ? Task.CompletedTask : Dialogs.Message(this, title, message);
 
         private async Task ExportSavePack()
         {
@@ -280,38 +356,20 @@ namespace Riel.Launcher.Gui
                 return;
             try
             {
-                Directory.CreateDirectory(RuntimeInfo.SavePackFolder);
                 string destination = Path.Combine(RuntimeInfo.SavePackFolder,
                     Path.GetFileNameWithoutExtension(chosen.File.Name) + ".ORSavePack");
-                string[] files = Directory.EnumerateFiles(RuntimeInfo.UserDataFolder,
-                    Path.GetFileNameWithoutExtension(chosen.File.Name) + ".*")
-                    .Where(file => Path.GetFileNameWithoutExtension(file) == Path.GetFileNameWithoutExtension(chosen.File.Name) ||
-                        Path.GetFileName(file) == Path.GetFileNameWithoutExtension(chosen.File.Name) + ".evaluation.txt")
-                    .ToArray();
-                if (File.Exists(destination) && !await Dialogs.Confirm(this, T("Replace save pack?"),
+                bool replace = File.Exists(destination);
+                if (replace && !await Dialogs.Confirm(this, T("Replace save pack?"),
                     F("A save pack named {0} already exists. Replace it?", Path.GetFileName(destination)),
                     T("Replace"), T("Cancel")))
                     return;
-                string temporary = destination + ".tmp";
-                try
-                {
-                    if (File.Exists(temporary))
-                        File.Delete(temporary);
-                    using (ZipArchive archive = ZipFile.Open(temporary, ZipArchiveMode.Create))
-                        foreach (string file in files)
-                            archive.CreateEntryFromFile(file, Path.GetFileName(file));
-                    File.Move(temporary, destination, overwrite: true);
-                }
-                finally
-                {
-                    if (File.Exists(temporary))
-                        File.Delete(temporary);
-                }
-                await Dialogs.Message(this, T("Save pack exported"), destination);
+                closing.Token.ThrowIfCancellationRequested();
+                await SavePackFiles.ExportAsync(chosen.File.FullName, destination, replace, closing.Token);
+                await ShowMessage(T("Save pack exported"), destination);
             }
             catch (Exception ex) when (ex is IOException || ex is UnauthorizedAccessException)
             {
-                await Dialogs.Message(this, T("Could not export save pack"), ex.Message);
+                await ShowMessage(T("Could not export save pack"), ex.Message);
             }
         }
 
@@ -322,27 +380,21 @@ namespace Riel.Launcher.Gui
                 Title = T("Import save pack"), AllowMultiple = false,
                 FileTypeFilter = new[] { new FilePickerFileType("Open Rails Save Pack") { Patterns = new[] { "*.ORSavePack" } } },
             });
+            if (closing.IsCancellationRequested)
+                return;
             string selected = picked.FirstOrDefault()?.TryGetLocalPath();
             if (selected == null)
                 return;
             try
             {
-                using ZipArchive archive = ZipFile.OpenRead(selected);
-                ZipArchiveEntry[] entries = archive.Entries.Where(entry => entry.Name.Length > 0).ToArray();
-                if (entries.Length == 0 || !entries.Any(entry => entry.Name.EndsWith(".save", StringComparison.OrdinalIgnoreCase)) ||
-                    entries.Select(entry => entry.Name).Distinct(StringComparer.OrdinalIgnoreCase).Count() != entries.Length ||
-                    entries.Any(entry => entry.FullName != entry.Name || entry.Name is "." or ".." ||
-                        entry.Name.Contains('/') || entry.Name.Contains('\\') ||
-                        File.Exists(Path.Combine(RuntimeInfo.UserDataFolder, entry.Name))))
-                    throw new InvalidDataException(T("The pack is empty, contains unsafe paths, or would overwrite an existing save."));
-                foreach (ZipArchiveEntry entry in entries)
-                    entry.ExtractToFile(Path.Combine(RuntimeInfo.UserDataFolder, entry.Name));
+                await SavePackFiles.ImportAsync(selected, RuntimeInfo.UserDataFolder, closing.Token);
+                if (closing.IsCancellationRequested)
+                    return;
                 RefreshSaves();
-                await LoadDetails();
             }
             catch (Exception ex) when (ex is IOException || ex is UnauthorizedAccessException || ex is InvalidDataException)
             {
-                await Dialogs.Message(this, T("Could not import save pack"), ex.Message);
+                await ShowMessage(T("Could not import save pack"), ex.Message);
             }
         }
 
@@ -363,17 +415,18 @@ namespace Riel.Launcher.Gui
                 }
                 RefreshSaves();
                 RefreshRestoreButton();
-                await LoadDetails();
-                await Dialogs.Message(this, T("Saves restored"), F("Restored {0} files.", restored));
+                await ShowMessage(T("Saves restored"), F("Restored {0} files.", restored));
             }
             catch (Exception ex) when (ex is IOException || ex is UnauthorizedAccessException)
             {
-                await Dialogs.Message(this, T("Could not restore saved games"), ex.Message);
+                await ShowMessage(T("Could not restore saved games"), ex.Message);
             }
         }
 
         private void RefreshSaves()
         {
+            if (closing.IsCancellationRequested)
+                return;
             SavedGameItem[] updated = Selections.SavedGames().Select(file =>
                 saves.FirstOrDefault(item => item.File.FullName == file.FullName) ?? new SavedGameItem(file)).ToArray();
             saves.Clear();
@@ -381,8 +434,11 @@ namespace Riel.Launcher.Gui
             SaveList.ItemsSource = updated;
         }
 
-        private void RefreshRestoreButton() => RestoreButton.IsEnabled =
-            Directory.Exists(RuntimeInfo.DeletedSaveFolder) &&
-            Directory.EnumerateFiles(RuntimeInfo.DeletedSaveFolder).Any();
+        private void RefreshRestoreButton()
+        {
+            if (!closing.IsCancellationRequested)
+                RestoreButton.IsEnabled = !operationInProgress && Directory.Exists(RuntimeInfo.DeletedSaveFolder) &&
+                    Directory.EnumerateFiles(RuntimeInfo.DeletedSaveFolder).Any();
+        }
     }
 }

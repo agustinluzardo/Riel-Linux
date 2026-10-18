@@ -2605,38 +2605,36 @@ namespace Orts.Simulation.RollingStocks
         /// <returns> returns true if car is over trough</returns>
         protected bool IsOverTrough()
         {
-            bool overTrough = false;
             // start at front of train
             int sectionIndex = Train.PresentPosition[Riel.Common.Direction.Forward].TrackCircuitSectionIndex;
-            if (sectionIndex < 0)
-                return overTrough;
+            if (sectionIndex < 0 || sectionIndex >= TrackCircuitSection.TrackCircuitList.Count)
+                return false;
             float sectionOffset = Train.PresentPosition[Riel.Common.Direction.Forward].Offset;
             TrackDirection sectionDirection = Train.PresentPosition[Riel.Common.Direction.Forward].Direction;
+            TrackCircuitPartialPathRoute route = Train.ValidRoutes[Riel.Common.Direction.Forward];
+            int sectionRouteIndex = Train.PresentPosition[Riel.Common.Direction.Forward].RouteListIndex;
+            if (route == null || sectionRouteIndex < 0 || sectionRouteIndex >= route.Count ||
+                route[sectionRouteIndex].TrackCircuitSection.Index != sectionIndex)
+                sectionRouteIndex = -1;
 
-            float usedCarLength = CarLengthM;
-            float processedCarLength = 0;
-            bool validSections = true;
+            TrackCircuitSection section = TrackCircuitSection.TrackCircuitList[sectionIndex];
+            float remainingCarLength = CarLengthM;
 
-            while (validSections)
+            while (remainingCarLength > 0)
             {
-                TrackCircuitSection section = TrackCircuitSection.TrackCircuitList[sectionIndex];
-                overTrough = false;
-
-                // car spans sections
-                if ((CarLengthM - processedCarLength) > sectionOffset)
-                {
-                    usedCarLength = sectionOffset - processedCarLength;
-                }
+                float usedCarLength = Math.Min(remainingCarLength, Math.Max(0, sectionOffset));
 
                 // section has troughs
                 foreach (TroughInfoData trough in section.TroughInfo ?? Enumerable.Empty<TroughInfoData>())
                 {
+                    if (usedCarLength <= 0)
+                        break;
                     float troughStartOffset = trough.Start[sectionDirection];
                     float troughEndOffset = trough.End[sectionDirection];
 
-                    if (troughStartOffset > 0 && troughStartOffset > sectionOffset)      // start of trough is in section beyond present position - cannot be over this trough nor any following
+                    if (troughStartOffset > 0 && troughStartOffset > sectionOffset)      // trough is ahead in this section; an earlier section may still be under the car
                     {
-                        return overTrough;
+                        break;
                     }
 
                     if (troughEndOffset > 0 && troughEndOffset < (sectionOffset - usedCarLength)) // beyond end of trough, test next
@@ -2646,28 +2644,21 @@ namespace Orts.Simulation.RollingStocks
 
                     if (troughStartOffset <= 0 || troughStartOffset < (sectionOffset - usedCarLength)) // start of trough is behind
                     {
-                        overTrough = true;
-                        return overTrough;
+                        return true;
                     }
                 }
 
-                // tested this section, any need to go beyond?
-                processedCarLength += usedCarLength;
-                // go back one section
-                int sectionRouteIndex = Train.ValidRoutes[Riel.Common.Direction.Forward].GetRouteIndexBackward(sectionIndex, Train.PresentPosition[Riel.Common.Direction.Forward].RouteListIndex);
-                if (sectionRouteIndex >= 0)
-                {
-                    sectionIndex = sectionRouteIndex;
-                    section = TrackCircuitSection.TrackCircuitList[sectionIndex];
-                    sectionOffset = section.Length;  // always at end of next section
-                    sectionDirection = Train.ValidRoutes[Riel.Common.Direction.Forward][sectionRouteIndex].Direction;
-                }
-                else // ran out of train
-                {
-                    validSections = false;
-                }
+                remainingCarLength -= usedCarLength;
+                if (remainingCarLength <= 0 || sectionRouteIndex <= 0)
+                    break;
+
+                // Route positions are not circuit IDs. Decreasing the cursor also
+                // bounds traversal when a circuit repeats or has zero length.
+                section = route[--sectionRouteIndex].TrackCircuitSection;
+                sectionOffset = section.Length;
+                sectionDirection = route[sectionRouteIndex].Direction;
             }
-            return overTrough;
+            return false;
         }
 
         /// <summary>

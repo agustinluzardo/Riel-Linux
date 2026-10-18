@@ -7,6 +7,8 @@
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="NuGet.Protocol" Version="7.9.0" />
+    <!-- Keep NuGet.Packaging's transitive PKCS dependency on the patched 8.0 line. -->
+    <PackageReference Include="System.Security.Cryptography.Pkcs" Version="8.0.2" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\Riel.Common\Riel.Common.csproj" />
