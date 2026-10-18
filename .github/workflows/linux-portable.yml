@@ -247,6 +247,10 @@ jobs:
             local release_tag="$1"
             local release_sha="$2"
             case "$release_tag" in
+              v1.0.1)
+                printf 'Stable portable Linux build of %s.\n\n' "$release_sha"
+                cat docs/releases/1.0.1.md
+                ;;
               v1.0.0)
                 printf 'Stable portable Linux build of %s.\n\n' "$release_sha"
                 cat docs/releases/1.0.0.md

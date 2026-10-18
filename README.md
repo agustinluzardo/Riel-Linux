@@ -21,11 +21,11 @@ Riel's Linux integration, interface, fixes and releases.
 
 ## Download and get started
 
-Stable **1.0.0** brings the refreshed English launcher with route/train details and selectable
-accent colors, plus audited fixes for saved games, scenery, in-game controls and simulation.
-It includes the existing nearby-train streaming fixes, shader camera snapshots, MSTS track
-gradients and roll, signal-shape lookup and native editor suite. See the
-[1.0.0 release notes](docs/releases/1.0.0.md) for validation and known limitations.
+Stable **1.0.1** improves saved-game import/export, scenery resource handling and water-trough
+traversal. Launcher scans share repeated locomotive reads within each scan while still detecting
+new and modified content. It includes the refreshed English launcher, selectable accent colors,
+nearby-train streaming fixes and native editor suite. See the
+[1.0.1 release notes](docs/releases/1.0.1.md) for validation and known limitations.
 Download `riel-linux-x64.zip` from the
 [stable release](https://github.com/agustinluzardo/Riel-Linux/releases/latest), extract the complete
 archive and run:
