@@ -28,11 +28,27 @@ namespace Riel.Models.Imported.ImportHandler.TrainSimulator
             TrainCars = ImmutableArray<WagonReferenceModel>.Empty
         };
 
-        public static async Task<ImmutableArray<WagonSetModel>> ExpandWagonSetModels(FolderModel folderModel, CancellationToken cancellationToken)
+        public static Task<ImmutableArray<WagonSetModel>> ExpandWagonSetModels(FolderModel folderModel, CancellationToken cancellationToken)
+            => ExpandWagonSetModels(folderModel, cancellationToken, file => new EngineFile(file));
+
+        internal static async Task<ImmutableArray<WagonSetModel>> ExpandWagonSetModels(FolderModel folderModel, CancellationToken cancellationToken,
+            Func<string, EngineFile> readEngine)
         {
             ArgumentNullException.ThrowIfNull(folderModel, nameof(folderModel));
+            ArgumentNullException.ThrowIfNull(readEngine, nameof(readEngine));
 
             ConcurrentBag<WagonSetModel> results = new ConcurrentBag<WagonSetModel>();
+            // Many consists reference the same locomotive. Read its display metadata once
+            // per scan instead of seeking through the same .eng file for every occurrence.
+            // This cache ends with this scan: edits and newly installed engines are read again
+            // on the next refresh. Resolved paths keep distinct case-sensitive files distinct.
+            ConcurrentDictionary<string, Lazy<EngineFile>> engineFiles = new ConcurrentDictionary<string, Lazy<EngineFile>>(StringComparer.Ordinal);
+            EngineFile ReadEngine(string path)
+            {
+                string resolved = ContentIO.ResolveFile(path);
+                return resolved == null ? null : engineFiles.GetOrAdd(Path.GetFullPath(resolved), file =>
+                    new Lazy<EngineFile>(() => readEngine(file), LazyThreadSafetyMode.ExecutionAndPublication)).Value;
+            }
 
             string sourceFolder = folderModel.MstsContentFolder().ConsistsFolder;
 
@@ -43,7 +59,7 @@ namespace Riel.Models.Imported.ImportHandler.TrainSimulator
 
                 await Parallel.ForEachAsync(consistFiles, cancellationToken, async (consistFile, token) =>
                 {
-                    Task<WagonSetModel> modelTask = Convert(consistFile, folderModel, cancellationToken);
+                    Task<WagonSetModel> modelTask = Convert(consistFile, folderModel, ReadEngine, token);
 
                     WagonSetModel wagonSetModel = await ImportFailures.Guard(modelTask, "consist", consistFile).ConfigureAwait(false);
                     if (wagonSetModel == null)
@@ -60,7 +76,8 @@ namespace Riel.Models.Imported.ImportHandler.TrainSimulator
             return result;
         }
 
-        private static async Task<WagonSetModel> Convert(string filePath, FolderModel folderModel, CancellationToken cancellationToken)
+        private static async Task<WagonSetModel> Convert(string filePath, FolderModel folderModel, Func<string, EngineFile> readEngine,
+            CancellationToken cancellationToken)
         {
             ArgumentException.ThrowIfNullOrEmpty(filePath, nameof(filePath));
             ArgumentNullException.ThrowIfNull(folderModel, nameof(folderModel));
@@ -86,9 +103,9 @@ namespace Riel.Models.Imported.ImportHandler.TrainSimulator
                         locomotive = trainCars[i];
                         string engineFileName = folderModel.MstsContentFolder().EngineFile(locomotive.Reference, locomotive.Name);
 
-                        if (ContentIO.FileExists(engineFileName))
+                        EngineFile engFile = readEngine(engineFileName);
+                        if (engFile != null)
                         {
-                            EngineFile engFile = new EngineFile(engineFileName);
                             locomotive = !string.IsNullOrEmpty(engFile.CabViewFile)
                                 ? (locomotive with
                                 {

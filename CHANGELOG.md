@@ -4,6 +4,24 @@ Stable versions and their assets are available in
 [Releases](https://github.com/agustinluzardo/Riel-Linux/releases). `main-<commit>` builds are
 prereleases that passed automated tests and packaging.
 
+## 1.0.1
+
+- Avoids repeatedly parsing the same locomotive during one launcher consist scan. New scans
+  still reread source metadata and discover newly installed consists; full route scanning remains.
+- Runs saved-game ZIP import/export outside the UI thread, supports cancellation, rejects unsafe
+  or conflicting entries, and stages imports before publishing saves. Failed exports retain
+  the previous archive. Keeps archived save timestamps.
+- Serializes saved-game file operations with metadata reads, prevents actions during operations,
+  refreshes invalid-save actions, and fits the actions at the window's minimum width.
+- Bounds water-trough traversal across repeated and zero-length track sections.
+- Reserves process-memory headroom before optional texture preloads and checks each pending
+  texture. Keeps all live aliases when marking shared graphics resources and schedules cleanup
+  after stationary train changes.
+- Selects instanced scenery from its authored LODs and groups instances by spatial cell and type.
+- Updates MessagePack to 3.1.9 and System.Security.Cryptography.Pkcs to 8.0.2.
+- Preserves physics formulas, simulation update frequencies and the saved-game format.
+- See the [1.0.1 release notes](docs/releases/1.0.1.md) for validation and known limitations.
+
 ## 1.0.0
 
 - Refreshes the English launcher with restored route/train details, clearer Play and Tools
