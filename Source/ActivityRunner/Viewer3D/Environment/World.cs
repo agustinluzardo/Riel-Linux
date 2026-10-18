@@ -42,6 +42,7 @@ namespace Orts.ActivityRunner.Viewer3D.Environment
         private Tile visibleTile;
         private bool performanceTune;
         private bool markSweepError;
+        private readonly ResourceSweepSchedule resourceSweep = new ResourceSweepSchedule();
 
         public WeatherControl WeatherControl;
         public SkyViewer Sky { get; }
@@ -95,7 +96,7 @@ namespace Orts.ActivityRunner.Viewer3D.Environment
             Trains.Load();
             RoadCars.Load();
             Containers.Load();
-            if (tile != visibleTile)
+            if (resourceSweep.ShouldSweep(tile != visibleTile, Trains.Cars, Stopwatch.GetElapsedTime(0)))
             {
                 tile = visibleTile;
                 try

@@ -43,6 +43,7 @@ namespace Orts.ActivityRunner.Viewer3D
         private readonly GraphicsDevice GraphicsDevice;
         private Dictionary<string, Texture2D> Textures = new Dictionary<string, Texture2D>(StringComparer.OrdinalIgnoreCase);
         Dictionary<string, bool> TextureMarks = new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase);
+        private ResourceMarkIndex<string, Texture2D> textureMarkIndex;
 
         internal SharedTextureManager(Viewer viewer, GraphicsDevice graphicsDevice)
         {
@@ -173,6 +174,7 @@ namespace Orts.ActivityRunner.Viewer3D
 
         public void Mark()
         {
+            (textureMarkIndex ??= new ResourceMarkIndex<string, Texture2D>()).Reset(Textures);
             TextureMarks.Clear();
             foreach (var path in Textures.Keys)
                 TextureMarks.Add(path, false);
@@ -180,8 +182,7 @@ namespace Orts.ActivityRunner.Viewer3D
 
         public void Mark(Texture2D texture)
         {
-            if (Textures.ContainsValue(texture))
-                TextureMarks[Textures.First(kvp => kvp.Value == texture).Key] = true;
+            textureMarkIndex?.Mark(texture, TextureMarks);
         }
 
         public void Sweep()
@@ -191,6 +192,7 @@ namespace Orts.ActivityRunner.Viewer3D
                 Textures[path].Dispose();
                 Textures.Remove(path);
             }
+            textureMarkIndex?.Clear();
         }
 
         public string GetStatus()
@@ -204,6 +206,7 @@ namespace Orts.ActivityRunner.Viewer3D
         private readonly Viewer Viewer;
         private Dictionary<(string, string, int, float, Effect), Material> Materials = new Dictionary<(string, string, int, float, Effect), Material>();
         private Dictionary<(string, string, int, float, Effect), bool> MaterialMarks = new Dictionary<(string, string, int, float, Effect), bool>();
+        private ResourceMarkIndex<(string, string, int, float, Effect), Material> materialMarkIndex;
 
         public readonly LightConeShader LightConeShader;
         public readonly LightGlowShader LightGlowShader;
@@ -337,52 +340,33 @@ namespace Orts.ActivityRunner.Viewer3D
 
         public bool LoadNightTextures()
         {
-            int count = 0;
-            foreach (SceneryMaterial material in from material in Materials.Values
-                                                 where material is SceneryMaterial
-                                                 select material)
+            foreach (SceneryMaterial material in Materials.Values.OfType<SceneryMaterial>())
             {
-                if (material.LoadNightTexture())
-                    count++;
-                if (count >= 20)
-                {
-                    count = 0;
-                    // retest if there is enough free memory left;
-                    long remainingMemorySpace = Viewer.LoadMemoryThreshold - System.Environment.WorkingSet;
-                    if (remainingMemorySpace < 0)
-                    {
-                        return false; // too bad, no more space, other night textures won't be loaded
-                    }
-                }
+                // This is optional preloading; never upload a batch of twenty
+                // textures before noticing that the process is out of headroom.
+                if (System.Environment.WorkingSet >= Viewer.LoadMemoryThreshold)
+                    return false;
+                material.LoadNightTexture();
             }
             return true;
         }
 
         public bool LoadDayTextures()
         {
-            int count = 0;
-            foreach (SceneryMaterial material in from material in Materials.Values
-                                                 where material is SceneryMaterial
-                                                 select material)
+            foreach (SceneryMaterial material in Materials.Values.OfType<SceneryMaterial>())
             {
-                if (material.LoadDayTexture())
-                    count++;
-                if (count >= 20)
-                {
-                    count = 0;
-                    // retest if there is enough free memory left;
-                    long remainingMemorySpace = Viewer.LoadMemoryThreshold - System.Environment.WorkingSet;
-                    if (remainingMemorySpace < 0)
-                    {
-                        return false; // too bad, no more space, other night textures won't be loaded
-                    }
-                }
+                // This is optional preloading; never upload a batch of twenty
+                // textures before noticing that the process is out of headroom.
+                if (System.Environment.WorkingSet >= Viewer.LoadMemoryThreshold)
+                    return false;
+                material.LoadDayTexture();
             }
             return true;
         }
 
         public void Mark()
         {
+            (materialMarkIndex ??= new ResourceMarkIndex<(string, string, int, float, Effect), Material>()).Reset(Materials);
             MaterialMarks.Clear();
             foreach (var path in Materials.Keys)
                 MaterialMarks.Add(path, false);
@@ -390,19 +374,14 @@ namespace Orts.ActivityRunner.Viewer3D
 
         public void Mark(Material material)
         {
-            foreach (var path in from kvp in Materials
-                                 where kvp.Value == material
-                                 select kvp.Key)
-            {
-                MaterialMarks[path] = true;
-                break;
-            }
+            materialMarkIndex?.Mark(material, MaterialMarks);
         }
 
         public void Sweep()
         {
             foreach (var path in MaterialMarks.Where(kvp => !kvp.Value).Select(kvp => kvp.Key))
                 Materials.Remove(path);
+            materialMarkIndex?.Clear();
         }
 
         public void LoadPrep()

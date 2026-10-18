@@ -182,6 +182,96 @@ namespace Tests.Launcher.Gui
             }
         }
 
+        [AvaloniaFact]
+        public async Task SaveActionsFitAtTheSupportedMinimumWindowWidth()
+        {
+            using SaveFixture fixture = new SaveFixture();
+            SavedGameItem selected = await fixture.WriteSave(ActivityType.Activity);
+            SavedGamesWindow window = CreateWindow(selected);
+            try
+            {
+                await (Task)Call(window, "LoadDetails");
+                window.Width = window.MinWidth;
+                window.Height = window.MinHeight;
+                window.Show();
+                window.UpdateLayout();
+                foreach (string name in new[] { "DeleteButton", "DeleteInvalidButton", "RestoreButton", "ImportButton", "ExportButton", "ContinueButton", "CancelButton", "ReplayPreviousButton", "ReplayStartButton" })
+                {
+                    Button button = Control<Button>(window, name);
+                    WrapPanel panel = Assert.IsType<WrapPanel>(button.Parent);
+                    Assert.True(button.Bounds.Right <= panel.Bounds.Width + 1, name + " extends beyond its row.");
+                    Assert.True(button.Bounds.Bottom <= panel.Bounds.Height + 1, name + " extends beyond its row height.");
+                }
+            }
+            finally
+            {
+                window.Close();
+            }
+        }
+
+        [AvaloniaFact]
+        public async Task AnUnselectedInvalidSnapshotRefreshesTheGlobalDeleteAction()
+        {
+            using SaveFixture fixture = new SaveFixture();
+            SavedGameItem selected = await fixture.WriteSave(ActivityType.Activity);
+            SavedGameItem invalid = await fixture.WriteSave(ActivityType.Activity, valid: false);
+            SavedGamesWindow window = CreateWindow(selected, invalid);
+            try
+            {
+                Assert.False(Control<Button>(window, "DeleteInvalidButton").IsEnabled);
+                await (Task)Call(window, "LoadDetails");
+                Assert.Same(selected, Control<ListBox>(window, "SaveList").SelectedItem);
+                Assert.False(invalid.CanResume);
+                Assert.True(Control<Button>(window, "DeleteInvalidButton").IsEnabled);
+                Assert.True(Control<Button>(window, "ContinueButton").IsEnabled);
+            }
+            finally
+            {
+                window.Close();
+            }
+        }
+
+        [AvaloniaFact]
+        public async Task AFileOperationKeepsTheUiResponsiveAndPreventsOverlappingActions()
+        {
+            using SaveFixture fixture = new SaveFixture();
+            SavedGameItem selected = await fixture.WriteSave(ActivityType.Activity);
+            SavedGamesWindow window = CreateWindow(selected);
+            TaskCompletionSource release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+            Task operation = null;
+            try
+            {
+                await (Task)Call(window, "LoadDetails");
+                operation = (Task)Call(window, "RunSaveOperation", (Func<Task>)(() => release.Task));
+                Assert.False(operation.IsCompleted);
+                Assert.False(Control<ListBox>(window, "SaveList").IsEnabled);
+                foreach (string name in new[] { "ContinueButton", "ReplayStartButton", "DeleteButton", "ImportButton", "ExportButton", "RestoreButton" })
+                    Assert.False(Control<Button>(window, name).IsEnabled);
+                Assert.True(Control<Button>(window, "CancelButton").IsEnabled);
+                Call(window, "Accept");
+                Assert.False(ClosingToken(window).IsCancellationRequested);
+                bool overlappingActionRan = false;
+                await (Task)Call(window, "RunSaveOperation", (Func<Task>)(() =>
+                {
+                    overlappingActionRan = true;
+                    return Task.CompletedTask;
+                }));
+                Assert.False(overlappingActionRan);
+                release.SetResult();
+                await operation;
+                Assert.True(Control<ListBox>(window, "SaveList").IsEnabled);
+                Assert.True(Control<Button>(window, "ContinueButton").IsEnabled);
+                Assert.True(Control<Button>(window, "ImportButton").IsEnabled);
+            }
+            finally
+            {
+                release.TrySetResult();
+                if (operation != null)
+                    await operation;
+                window.Close();
+            }
+        }
+
         private static SavedGamesWindow CreateWindow(params SavedGameItem[] items)
         {
             SavedGamesWindow window = new SavedGamesWindow(Array.Empty<RouteItem>());
