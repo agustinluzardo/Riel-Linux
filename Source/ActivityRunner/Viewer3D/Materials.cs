@@ -707,7 +707,7 @@ namespace Orts.ActivityRunner.Viewer3D
     public class SceneryMaterial : Material
     {
         private readonly float timeOffset;
-        private readonly bool nightTextureEnabled;
+        private bool NightTextureEnabled => nightTexture != null && nightTexture != SharedMaterialManager.MissingTexture;
         private readonly bool undergroundTextureEnabled;
         private readonly SceneryMaterialOptions options;
         protected Texture2D dayTexture;
@@ -809,7 +809,6 @@ namespace Orts.ActivityRunner.Viewer3D
             }
 
             timeOffset = (KeyLengthRemainder()) / 5000f; // TODO for later use for pseudorandom texture switch time
-            nightTextureEnabled = nightTexture != null && nightTexture != SharedMaterialManager.MissingTexture;
             undergroundTextureEnabled = (options & SceneryMaterialOptions.UndergroundTexture) != 0;
         }
 
@@ -945,10 +944,10 @@ namespace Orts.ActivityRunner.Viewer3D
                 // Prefer the authored night texture when present; otherwise illuminate the
                 // normal cab texture. ImageTextureIsNight is the existing scenery-shader
                 // path which deliberately bypasses sun/night darkening for emissive content.
-                shader.ImageTexture = nightTextureEnabled ? nightTexture : dayTexture;
+                shader.ImageTexture = NightTextureEnabled ? nightTexture : dayTexture;
                 shader.ImageTextureIsNight = true;
             }
-            else if (nightTextureEnabled && ((undergroundTextureEnabled && viewer.MaterialManager.sunDirection.Y < -0.085f || viewer.Camera.IsUnderground) ||
+            else if (NightTextureEnabled && ((undergroundTextureEnabled && viewer.MaterialManager.sunDirection.Y < -0.085f || viewer.Camera.IsUnderground) ||
             viewer.MaterialManager.sunDirection.Y < 0.0f - timeOffset))
             //if (nightTexture != null && nightTexture != SharedMaterialManager.MissingTexture && (((options & SceneryMaterialOptions.UndergroundTexture) != 0 &&
             //    (Viewer.MaterialManager.sunDirection.Y < -0.085f || Viewer.Camera.IsUnderground)) || Viewer.MaterialManager.sunDirection.Y < 0.0f - ((float)KeyLengthRemainder()) / 5000f))
@@ -1020,7 +1019,7 @@ namespace Orts.ActivityRunner.Viewer3D
             //    return nightTexture;
 
             //return dayTexture;
-            if (nightTextureEnabled && ((undergroundTextureEnabled && viewer.MaterialManager.sunDirection.Y < -0.085f || viewer.Camera.IsUnderground)
+            if (NightTextureEnabled && ((undergroundTextureEnabled && viewer.MaterialManager.sunDirection.Y < -0.085f || viewer.Camera.IsUnderground)
                 || viewer.MaterialManager.sunDirection.Y < 0.0f - timeOffset))
                 return nightTexture;
             return dayTexture;
@@ -1029,33 +1028,43 @@ namespace Orts.ActivityRunner.Viewer3D
         private static SamplerState GetShadowTextureAddressMode(float mipMapBias, SceneryMaterialOptions options)
         {
             mipMapBias = Math.Max(mipMapBias, -1);// MipMapBias < -1 ? -1 : MipMapBias;
-            int textureAddressMode = (int)(options & SceneryMaterialOptions.TextureAddressModeMask);
+            SceneryMaterialOptions addressMode = options & SceneryMaterialOptions.TextureAddressModeMask;
+            int textureAddressModeIndex = (int)addressMode >> 9;
+            // These packed flags order Mirror before Clamp; MonoGame's enum
+            // orders Clamp before Mirror, so map the names explicitly.
+            TextureAddressMode textureAddressMode = addressMode switch
+            {
+                SceneryMaterialOptions.TextureAddressModeMirror => TextureAddressMode.Mirror,
+                SceneryMaterialOptions.TextureAddressModeClamp => TextureAddressMode.Clamp,
+                SceneryMaterialOptions.TextureAddressModeBorder => TextureAddressMode.Border,
+                _ => TextureAddressMode.Wrap,
+            };
 
-            if (samplerStates[textureAddressMode] == null)
+            if (samplerStates[textureAddressModeIndex] == null)
             {
                 lock (samplerStates)
                 {
-                    if (samplerStates[textureAddressMode] == null)
-                        samplerStates[textureAddressMode] = new Dictionary<float, SamplerState>();
+                    if (samplerStates[textureAddressModeIndex] == null)
+                        samplerStates[textureAddressModeIndex] = new Dictionary<float, SamplerState>();
                 }
             }
 
-            if (!samplerStates[textureAddressMode].ContainsKey(mipMapBias))
+            if (!samplerStates[textureAddressModeIndex].ContainsKey(mipMapBias))
             {
-                lock (samplerStates[textureAddressMode])
+                lock (samplerStates[textureAddressModeIndex])
                 {
-                    if (!samplerStates[textureAddressMode].ContainsKey(mipMapBias))
-                        samplerStates[textureAddressMode].Add(mipMapBias, new SamplerState
+                    if (!samplerStates[textureAddressModeIndex].ContainsKey(mipMapBias))
+                        samplerStates[textureAddressModeIndex].Add(mipMapBias, new SamplerState
                         {
-                            AddressU = (TextureAddressMode)textureAddressMode,
-                            AddressV = (TextureAddressMode)textureAddressMode,
+                            AddressU = textureAddressMode,
+                            AddressV = textureAddressMode,
                             Filter = TextureFilter.Anisotropic,
                             MaxAnisotropy = 16,
                             MipMapLevelOfDetailBias = mipMapBias
                         });
                 }
             }
-            return samplerStates[textureAddressMode][mipMapBias];
+            return samplerStates[textureAddressModeIndex][mipMapBias];
         }
 
         public override void Mark()

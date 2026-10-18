@@ -170,8 +170,8 @@ namespace Orts.ActivityRunner.Viewer3D
         {
             WorldLocation normalized = location.Normalize();
 
-            WorldFile worldFile = WorldFiles.FirstOrDefault(wf => wf.Tile == tile);
-            return worldFile == null ? float.MinValue : worldFile.GetBoundingBoxTop(location.Location.X, location.Location.Z, blockSize);
+            WorldFile worldFile = WorldFiles.FirstOrDefault(wf => wf.Tile == normalized.Tile);
+            return worldFile == null ? float.MinValue : worldFile.GetBoundingBoxTop(normalized.Location.X, normalized.Location.Z, blockSize);
         }
 
         public void Update(in ElapsedTime elapsedTime)

@@ -1894,6 +1894,11 @@ namespace Orts.Simulation.Physics
             int sectionIndex = PresentPosition[Direction.Forward].TrackCircuitSectionIndex;
             float sectionOffset = PresentPosition[Direction.Forward].Offset;
             TrackDirection sectionDirection = PresentPosition[Direction.Forward].Direction;
+            TrackCircuitPartialPathRoute route = ValidRoutes[Direction.Forward];
+            int sectionRouteIndex = PresentPosition[Direction.Forward].RouteListIndex;
+            if (route == null || sectionRouteIndex < 0 || sectionRouteIndex >= route.Count ||
+                route[sectionRouteIndex].TrackCircuitSection.Index != sectionIndex)
+                sectionRouteIndex = -1;
 
             foreach (TrainCar car in Cars)
             {
@@ -1909,17 +1914,15 @@ namespace Orts.Simulation.Physics
                 while (validSections)
                 {
                     TrackCircuitSection section = TrackCircuitSection.TrackCircuitList[sectionIndex];
-                    bool inTunnel = false;
+                    bool inTunnel = tunnelInfo != null;
 
-                    // car spans sections
-                    if ((car.CarLengthM - processedCarLength) > sectionOffset)
-                    {
-                        usedCarLength = sectionOffset - processedCarLength;
-                    }
+                    usedCarLength = Math.Min(car.CarLengthM - processedCarLength, Math.Max(0, sectionOffset));
 
                     // section has tunnels
                     foreach (TunnelInfoData tunnel in section.TunnelInfo ?? Enumerable.Empty<TunnelInfoData>())
                     {
+                        if (inTunnel || usedCarLength <= 0)
+                            break;
                         float tunnelStartOffset = tunnel.Start[sectionDirection];
                         float tunnelEndOffset = tunnel.End[sectionDirection];
 
@@ -1966,10 +1969,10 @@ namespace Orts.Simulation.Physics
                     // tested this section, any need to go beyond?
 
                     processedCarLength += usedCarLength;
-                    if (inTunnel || processedCarLength >= car.CarLengthM)
+                    sectionOffset -= usedCarLength;
+                    if (processedCarLength >= car.CarLengthM)
                     {
                         validSections = false;  // end of while loop through sections
-                        sectionOffset -= usedCarLength;   // position of next car in this section
 
                         car.TunnelFrontPositionBeyondStart = FrontCarPositionInTunnel;
                         car.TunnelLengthAheadFront = FrontCarLengthOfTunnelAhead;
@@ -1978,14 +1981,14 @@ namespace Orts.Simulation.Physics
                     }
                     else
                     {
-                        // go back one section
-                        int thisSectionRouteIndex = ValidRoutes[Direction.Forward].GetRouteIndexBackward(sectionIndex, PresentPosition[Direction.Forward].RouteListIndex);
-                        if (thisSectionRouteIndex >= 0)
+                        // Advance through route positions, which may revisit the same circuit.
+                        // Decreasing the cursor also bounds traversal through zero-length sections.
+                        if (sectionRouteIndex > 0)
                         {
-                            sectionIndex = thisSectionRouteIndex;
-                            section = TrackCircuitSection.TrackCircuitList[sectionIndex];
+                            section = route[--sectionRouteIndex].TrackCircuitSection;
+                            sectionIndex = section.Index;
                             sectionOffset = section.Length;  // always at end of next section
-                            sectionDirection = ValidRoutes[Direction.Forward][thisSectionRouteIndex].Direction;
+                            sectionDirection = route[sectionRouteIndex].Direction;
                         }
                         else // ran out of train
                         {

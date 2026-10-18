@@ -121,9 +121,6 @@ namespace Orts.Simulation.World
             const float minCrossingActivationSpeed = 5.0f;  //5.0MpS is equalivalent to 11.1mph.  This is the estimated min speed that MSTS uses to activate the gates when in range.
 
 
-            bool validTrain = false;
-            bool validStaticConsist = false;
-
             // We only care about crossing items which are:
             //   a) Grouped properly.
             //   b) Within the maximum activation distance of front/rear of the train.
@@ -132,6 +129,8 @@ namespace Orts.Simulation.World
 
             foreach (LevelCrossingItem crossing in TrackCrossingItems.Values.Where(ci => ci.CrossingGroup != null))
             {
+                bool validTrain = false;
+                bool validStaticConsist = false;
                 float predictedDist = crossing.CrossingGroup.WarningTime * absSpeedMpS;
                 float maxPredictedDist = crossing.CrossingGroup.WarningTime * (maxSpeedMpS - absSpeedMpS) / 2; // added distance if train accelerates to maxspeed
                 float minimumDist = crossing.CrossingGroup.MinimumDistance;

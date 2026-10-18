@@ -105,7 +105,8 @@ namespace Orts.ActivityRunner.Viewer3D.Shapes
         {
             Matrix matrix = Matrix.Identity;
             int hi = shapePrimitive.HierarchyIndex;
-            while (hi >= 0 && hi < shapePrimitive.Hierarchy.Length && shapePrimitive.Hierarchy[hi] != -1)
+            // Include the terminal root, just as SharedShape.PrepareFrame does.
+            while (hi >= 0 && hi < shapePrimitive.Hierarchy.Length)
             {
                 matrix = MatrixExtension.Multiply(matrix, SharedShape.Matrices[hi]);
                 hi = shapePrimitive.Hierarchy[hi];

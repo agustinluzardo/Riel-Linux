@@ -22,12 +22,23 @@ namespace Riel.Graphics.Window
         private IndexBuffer windowIndexBuffer;
         private readonly object bufferLock = new object();
         private WindowControl inactiveControl;
+        private WindowControl activeControl;
 
         public bool CloseButton { get; protected set; } = true;
 
         protected bool CapturedForDragging { get; private set; }
 
-        internal WindowControl ActiveControl { get; set; }
+        internal WindowControl ActiveControl
+        {
+            get => activeControl;
+            set
+            {
+                if (activeControl == value)
+                    return;
+                activeControl = value;
+                Owner.UpdateInputSuppression();
+            }
+        }
 
         public string Caption { get; protected set; }
 

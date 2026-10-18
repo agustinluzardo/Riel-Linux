@@ -43,6 +43,8 @@ namespace Orts.ActivityRunner.Viewer3D.PopupWindows
         private ControlLayout controlLayout;
 #pragma warning restore CA2213 // Disposable fields should be disposed
         private Tile cameraTile;
+        private bool labelsDirty = true;
+        private List<WorldFile> labelWorldFiles;
         private readonly ResourceGameComponent<Label3DOverlay, int> labelCache;
         private readonly List<Label3DOverlay> labelList = new List<Label3DOverlay>();
         private readonly CameraViewProjectionHolder cameraViewProjection;
@@ -72,13 +74,21 @@ namespace Orts.ActivityRunner.Viewer3D.PopupWindows
 
         protected override void Update(GameTime gameTime, bool shouldUpdate)
         {
-            UpdateLabelLists();
-            ref readonly WorldLocation cameraLocation = ref viewer.Camera.CameraWorldLocation;
-            if (shouldUpdate && cameraTile != cameraLocation.Tile)
+            if (shouldUpdate)
+            {
+                UpdateLabelLists();
+                UpdateLocationLabels(viewer.Camera.CameraWorldLocation, viewer.World.Scenery.WorldFiles);
+            }
+            base.Update(gameTime, shouldUpdate);
+        }
+
+        private void UpdateLocationLabels(in WorldLocation cameraLocation, List<WorldFile> worldFiles)
+        {
+            if (labelsDirty || cameraTile != cameraLocation.Tile || !ReferenceEquals(labelWorldFiles, worldFiles))
             {
                 cameraTile = cameraLocation.Tile;
                 labelList.Clear();
-                foreach (WorldFile worldFile in viewer.World.Scenery.WorldFiles)
+                foreach (WorldFile worldFile in worldFiles)
                 {
                     if (Math.Abs(worldFile.Tile.X - cameraLocation.TileX) < 2 && Math.Abs(worldFile.Tile.Z - cameraLocation.TileZ) < 2)
                     {
@@ -103,12 +113,14 @@ namespace Orts.ActivityRunner.Viewer3D.PopupWindows
                 controlLayout.Controls.Clear();
                 foreach (Label3DOverlay item in labelList)
                     controlLayout.Controls.Add(item);
+                labelWorldFiles = worldFiles;
+                labelsDirty = false;
             }
-            base.Update(gameTime, shouldUpdate);
         }
 
         public override bool Open()
         {
+            labelsDirty = true;
             ChangeMode();
             userCommandController.AddEvent(UserCommand.DisplayStationLabels, KeyEventType.KeyPressed, TabAction, true);
             return base.Open();
@@ -136,6 +148,7 @@ namespace Orts.ActivityRunner.Viewer3D.PopupWindows
             if (args is ModifiableKeyCommandArgs keyCommandArgs && (keyCommandArgs.AdditionalModifiers & KeyModifiers.Shift) == KeyModifiers.Shift)
             {
                 viewMode = viewMode.Next();
+                labelsDirty = true;
                 userSettings.PopupSettings[ViewerWindowType.LocationsOverlay] = viewMode.ToString();
                 ChangeMode();
             }
@@ -166,11 +179,13 @@ namespace Orts.ActivityRunner.Viewer3D.PopupWindows
             List<StationStop> stationStops = Simulator.Instance.PlayerLocomotive.Train.StationStops;
             Simulation.Activities.Activity activity = Simulator.Instance.ActivityRun;
 
-            // Update every 10s or when the current activity task changes.
+            // Update every second or when the current activity task changes.
             if (System.Environment.TickCount64 > nextActivityUpdate || stationStopsCount != (stationStopsCount = stationStops.Count) ||
                 activityTask != (activityTask = activity?.ActivityTask))
             {
                 nextActivityUpdate = System.Environment.TickCount64 + 1000;
+                if (viewMode == ViewMode.Auto)
+                    labelsDirty = true;
                 autoPlatforms.Clear();
                 autoSidings.Clear();
 

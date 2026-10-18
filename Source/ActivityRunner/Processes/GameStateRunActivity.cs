@@ -139,6 +139,7 @@ namespace Orts.ActivityRunner.Processes
                         await Start(profileSelections).ConfigureAwait(false);
                         break;
                     case GamePlayAction.SingleplayerResume:
+                    case GamePlayAction.SinglePlayerResumeTimetableGame:
                         await Resume(profileSelections).ConfigureAwait(false);
                         break;
                     case GamePlayAction.SingleplayerReplay:
@@ -146,8 +147,6 @@ namespace Orts.ActivityRunner.Processes
                         break;
                     case GamePlayAction.SingleplayerReplayFromSave:
                         await ReplayFromSave(profileSelections).ConfigureAwait(false);
-                        break;
-                    case GamePlayAction.SinglePlayerResumeTimetableGame:
                         break;
                     case GamePlayAction.MultiplayerClientResumeSave:
                         break;
