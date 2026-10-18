@@ -232,7 +232,7 @@ namespace Tests.Riel.Runtime
         [TestMethod]
         public void InstanceCellsKeepDistantCopiesAndTrackFlagsInSeparateGroups()
         {
-            MethodInfo cell = typeof(WorldFile).GetMethod("InstanceCell", BindingFlags.Static | BindingFlags.NonPublic);
+            MethodInfo cell = typeof(Orts.ActivityRunner.Viewer3D.WorldFile).GetMethod("InstanceCell", BindingFlags.Static | BindingFlags.NonPublic);
             StaticShape negative = Uninitialized<StaticShape>();
             StaticShape origin = Uninitialized<StaticShape>();
             StaticShape distant = Uninitialized<StaticShape>();
