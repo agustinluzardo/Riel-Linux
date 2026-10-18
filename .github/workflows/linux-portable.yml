@@ -247,6 +247,10 @@ jobs:
             local release_tag="$1"
             local release_sha="$2"
             case "$release_tag" in
+              v1.0.0)
+                printf 'Stable portable Linux build of %s.\n\n' "$release_sha"
+                cat docs/releases/1.0.0.md
+                ;;
               v0.1.0)
                 printf '%b\n' "Stable portable Linux build of ${release_sha}, with bundled .NET runtime.\n\n### Highlights\n- First stable Riel Linux release.\n- Renamed the public assemblies, namespaces and common library from \`FreeTrainSimulator.*\` to \`Riel.*\`.\n- Kept launcher/update checks working through the repository rename.\n- Hardened Linux activity testing so startup failures are logged and batch testing can continue.\n- Improved native AI train visual loading, nearby-train prioritization and related diagnostics.\n- Added the F3 system information overlay and Linux temperature reporting.\n\n### Compatibility / known issues\n- Bundled Riel assemblies already use the \`Riel.*\` names.\n- Only third-party add-on DLLs built against legacy \`FreeTrainSimulator.*\` assemblies require rebuilding.\n- Older saves made before the assembly rename have not been fully verified.\n- Known route-content issue: the signal between Quilmes and Ezpeleta can display green while the route treats it as red."
                 ;;

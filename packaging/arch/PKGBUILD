@@ -1,7 +1,7 @@
 # Maintainer: Agustin Luzardo <agustinluzardo09@gmail.com>
 
 pkgname=riel
-pkgver=0.1.9
+pkgver=1.0.0
 pkgrel=1
 pkgdesc="Drive Microsoft Train Simulator routes natively on Linux, without Wine"
 arch=('x86_64')

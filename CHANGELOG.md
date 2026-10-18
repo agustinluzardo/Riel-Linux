@@ -4,6 +4,24 @@ Stable versions and their assets are available in
 [Releases](https://github.com/agustinluzardo/Riel-Linux/releases). `main-<commit>` builds are
 prereleases that passed automated tests and packaging.
 
+## 1.0.0
+
+- Refreshes the English launcher with restored route/train details, clearer Play and Tools
+  buttons, and seven selectable accent colors for light and dark themes.
+- Prioritizes selected-save metadata, waits for complete resume details, corrects timetable
+  resume dispatch, and propagates cancellation through content conversion.
+- Fixes texture sampler indexing, deferred night-texture selection, instanced model root
+  transforms and roof queries across tiles. Rejects referenced cyclic model hierarchies
+  before graphics allocation while preserving legacy truncated-parent fallback behavior.
+- Corrects text-input/modal focus handling and refreshes location labels when their inputs change.
+- Fixes tunnel traversal across section boundaries, crossing eligibility leaking between
+  crossings, and split-platform axis comparisons.
+- Includes the previous train-streaming, camera snapshot, track-placement and native editor fixes.
+- Preserves graphics defaults, LOD/culling policy, resource lifetimes, physics formulas and
+  simulation update frequencies. Publication uses the existing managed/native test and
+  portable-package gates; custom-route FPS and GPU confirmation remain pending.
+- See the [1.0.0 release notes](docs/releases/1.0.0.md) for downloads, validation and known limitations.
+
 ## 0.1.9
 
 - Extends the 0.1.8 loading fix to complete nearby trains. A train stays loaded while
