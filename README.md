@@ -21,11 +21,11 @@ Riel's Linux integration, interface, fixes and releases.
 
 ## Download and get started
 
-Stable **0.1.9** keeps complete nearby trains loaded as well as the player's consist,
-preventing camera changes from discarding models of adjacent trains. Distance streaming uses
-the camera and every car of the player train as references. It includes the shader camera snapshot from 0.1.7,
-the MSTS track gradients and roll restored in 0.1.6, signal-shape lookup, startup fixes,
-the native editor suite and Vulkan activation through Zink.
+Stable **1.0.0** brings the refreshed English launcher with route/train details and selectable
+accent colors, plus audited fixes for saved games, scenery, in-game controls and simulation.
+It includes the existing nearby-train streaming fixes, shader camera snapshots, MSTS track
+gradients and roll, signal-shape lookup and native editor suite. See the
+[1.0.0 release notes](docs/releases/1.0.0.md) for validation and known limitations.
 Download `riel-linux-x64.zip` from the
 [stable release](https://github.com/agustinluzardo/Riel-Linux/releases/latest), extract the complete
 archive and run:
