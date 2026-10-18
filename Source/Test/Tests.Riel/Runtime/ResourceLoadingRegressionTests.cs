@@ -96,6 +96,10 @@ namespace Tests.Riel.Runtime
             viewer.LoadMemoryThreshold = 0;
             SharedMaterialManager manager = Uninitialized<SharedMaterialManager>();
             SceneryMaterial live = Uninitialized<SceneryMaterial>();
+            Set(live, "options", SceneryMaterialOptions.NightTexture);
+            Set(live, "nightTexture", SharedMaterialManager.MissingTexture);
+            Set(live, "dayTexture", SharedMaterialManager.MissingTexture);
+            Set(live, "texturePath", "pending.ace");
             var materials = new Dictionary<(string, string, int, float, Effect), Material>
             {
                 [("Scenery", "first.ace", 0, 0, null)] = live,
@@ -111,6 +115,10 @@ namespace Tests.Riel.Runtime
             Assert.AreEqual(2, materials.Count);
             Assert.IsFalse(manager.LoadNightTextures(), "Stop before the first upload when memory is exhausted.");
             Assert.IsFalse(manager.LoadDayTextures());
+            Set(live, "options", SceneryMaterialOptions.None);
+            Set(live, "dayTexture", Uninitialized<Texture2D>());
+            Assert.IsTrue(manager.LoadNightTextures(), "An already-loaded scene must not be reported as pending.");
+            Assert.IsTrue(manager.LoadDayTextures());
         }
 
         private static T Uninitialized<T>() where T : class

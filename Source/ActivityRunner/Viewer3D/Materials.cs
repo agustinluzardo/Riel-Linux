@@ -342,6 +342,8 @@ namespace Orts.ActivityRunner.Viewer3D
         {
             foreach (SceneryMaterial material in Materials.Values.OfType<SceneryMaterial>())
             {
+                if (!material.NightTexturePending)
+                    continue;
                 // This is optional preloading; never upload a batch of twenty
                 // textures before noticing that the process is out of headroom.
                 if (System.Environment.WorkingSet >= Viewer.LoadMemoryThreshold)
@@ -355,6 +357,8 @@ namespace Orts.ActivityRunner.Viewer3D
         {
             foreach (SceneryMaterial material in Materials.Values.OfType<SceneryMaterial>())
             {
+                if (!material.DayTexturePending)
+                    continue;
                 // This is optional preloading; never upload a batch of twenty
                 // textures before noticing that the process is out of headroom.
                 if (System.Environment.WorkingSet >= Viewer.LoadMemoryThreshold)
@@ -791,10 +795,16 @@ namespace Orts.ActivityRunner.Viewer3D
             undergroundTextureEnabled = (options & SceneryMaterialOptions.UndergroundTexture) != 0;
         }
 
+        internal bool NightTexturePending => (options & SceneryMaterialOptions.NightTexture) != 0 &&
+            nightTexture == SharedMaterialManager.MissingTexture;
+
+        internal bool DayTexturePending => dayTexture == SharedMaterialManager.MissingTexture &&
+            !string.IsNullOrEmpty(texturePath);
+
         public bool LoadNightTexture()
         {
             bool result = false;
-            if (((options & SceneryMaterialOptions.NightTexture) != 0) && (nightTexture == SharedMaterialManager.MissingTexture))
+            if (NightTexturePending)
             {
                 var nightTexturePath = Helpers.GetNightTextureFile(texturePath);
                 if (!string.IsNullOrEmpty(nightTexturePath))
@@ -809,7 +819,7 @@ namespace Orts.ActivityRunner.Viewer3D
         public bool LoadDayTexture()
         {
             bool result = false;
-            if (dayTexture == SharedMaterialManager.MissingTexture && !String.IsNullOrEmpty(texturePath))
+            if (DayTexturePending)
             {
                 dayTexture = viewer.TextureManager.Get(texturePath);
                 result = true;
